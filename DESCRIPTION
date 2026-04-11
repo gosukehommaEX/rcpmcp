@@ -1,6 +1,6 @@
 Package: rcpmcp
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Regional Consistency Probability under Multiple Comparison Procedures
 Version: 0.1.0
 Authors@R: person(
     given  = "Gosuke",
@@ -8,10 +8,25 @@ Authors@R: person(
     role   = c("aut", "cre"),
     email  = "my.name.is.gosuke@gmail.com"
   )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
-License: MIT + file LICENSE
+Description: Computes regional consistency probabilities (RCPs) and disjunctive
+    power for multi-regional clinical trials (MRCTs) with multiple primary
+    endpoints under multiplicity adjustment procedures. Implements closed-form
+    solutions based on the multivariate normal distribution and Monte Carlo
+    simulation for the Bonferroni, Holm, Hochberg, and Hommel procedures.
+    Provides adjusted consistency thresholds for both Method 1 and Method 2
+    of the Japanese Ministry of Health, Labour and Welfare (MHLW) guidance
+    that correct for null RCP inflation arising from Bonferroni-adjusted
+    critical values. Sample size determination under the Bonferroni procedure
+    is also supported.
+License: GPL (>= 2)
 Encoding: UTF-8
-LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
+Imports:
+    ggplot2,
+    mvtnorm,
+    rlang,
+    stats,
+    utils
+Suggests:
+    ggh4x

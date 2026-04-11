@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+*.Rcheck/
+*.tar.gz
+*.zip
+NAMESPACE
+man/
