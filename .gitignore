@@ -5,5 +5,3 @@
 *.Rcheck/
 *.tar.gz
 *.zip
-NAMESPACE
-man/
