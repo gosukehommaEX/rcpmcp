@@ -18,7 +18,8 @@ rcpmcp_multiple(
   alpha = 0.025,
   approach = "formula",
   nsim = 10000,
-  seed = 1
+  seed = 1,
+  variance_known = TRUE
 )
 
 \method{print}{rcpmcp_multiple}(
@@ -45,10 +46,18 @@ rcpmcp_multiple(
 )
 }
 \arguments{
-\item{delta}{Numeric vector of length \code{K_max}. True treatment effects
-(mean differences) for each endpoint. All elements must be non-negative.
-Zero values correspond to the null hypothesis and can be used to evaluate
-type I error.}
+\item{delta}{Numeric vector of length \code{K_max} or a numeric matrix
+of dimension \code{K_max}-by-\code{S}. When a vector is supplied, the
+same treatment effect is assumed for all regions, that is,
+\eqn{\delta_{k,s} = \delta_{k}} for all \eqn{s}. When a matrix is
+supplied, element \code{delta[k, s]} represents the true treatment
+effect for endpoint \eqn{k} in region \eqn{s}, allowing
+region-specific treatment effects. For the evaluation with \eqn{K}
+endpoints, only the first \eqn{K} rows of the matrix are used.
+Region-specific treatment effects are only supported under
+\code{approach = "simulation"}. All elements must be non-negative.
+Zero values correspond to the null hypothesis and can be used to
+evaluate type I error.}
 
 \item{Sigma}{\code{K_max}-by-\code{K_max} numeric variance-covariance
 matrix for the \code{K_max} endpoints. Must be symmetric and positive
@@ -99,6 +108,15 @@ when \code{approach = "simulation"}. Default is \code{10000}.}
 \item{seed}{Non-negative integer. Random seed for reproducibility. Used
 only when \code{approach = "simulation"}. Default is \code{1}.}
 
+\item{variance_known}{Logical scalar. If \code{TRUE} (default), the
+common variance is treated as known and Wald-type Z-statistics with
+normal critical values are used. If \code{FALSE}, the variance is
+treated as unknown and t-statistics with degrees of freedom
+\eqn{\nu = N - 2} are used; the sample variance-covariance matrix is
+sampled from a Wishart distribution to avoid generating
+individual-level data. Only supported under
+\code{approach = "simulation"}.}
+
 \item{x}{An object of class \code{"rcpmcp_multiple"}.}
 
 \item{digits}{A non-negative integer specifying the number of decimal
@@ -120,7 +138,7 @@ the same \code{K_max} as \code{x}. Default is \code{NULL} (plot
 
 \item{group_labels}{Character vector or \code{expression}. Legend labels
 for all conditions in the order \code{c(x, overlay[[1]], overlay[[2]],
-  \ldots)}. Supports \code{expression()} for mathematical annotation,
+\ldots)}. Supports \code{expression()} for mathematical annotation,
 e.g. \code{expression(rho == 0, rho == 0.5)}.
 Default is \code{NULL} (auto-generated labels).}
 
@@ -283,6 +301,7 @@ result_formula <- rcpmcp_multiple(
 )
 print(result_formula)
 
+\donttest{
 # Example 2: Simulation (all four MCP methods computed simultaneously)
 result_sim <- rcpmcp_multiple(
   delta    = rep(0.2, 5),
@@ -301,7 +320,48 @@ print(result_sim)
 
 # Example 3: Print selected MCP methods only
 print(result_sim, mcp_method = c("bonferroni", "holm"))
+}
 
+\donttest{
+# Example 4: Region-specific treatment effects (region 1 null)
+delta_mat <- matrix(c(rep(0, 5), rep(0.2, 5), rep(0.2, 5)),
+                    nrow = 5, ncol = 3, byrow = FALSE)
+result_mat <- rcpmcp_multiple(
+  delta    = delta_mat,
+  Sigma    = diag(5),
+  N        = 200,
+  fs       = c(0.1, 0.45, 0.45),
+  K_max    = 5,
+  gamma_M1 = 0.5,
+  gamma_M2 = 0,
+  alpha    = 0.025,
+  approach = "simulation",
+  nsim     = 10000,
+  seed     = 1
+)
+print(result_mat)
+}
+
+\donttest{
+# Example 5: Unknown variance (Wishart-sampled sample covariance)
+result_unk <- rcpmcp_multiple(
+  delta          = rep(0.2, 5),
+  Sigma          = diag(5),
+  N              = 200,
+  fs             = c(0.1, 0.45, 0.45),
+  K_max          = 5,
+  gamma_M1       = 0.5,
+  gamma_M2       = 0,
+  alpha          = 0.025,
+  approach       = "simulation",
+  nsim           = 10000,
+  seed           = 1,
+  variance_known = FALSE
+)
+print(result_unk)
+}
+
+\donttest{
 # plot(): Single object, all three panels (default)
 res <- rcpmcp_multiple(
   delta = rep(0.3, 5), Sigma = diag(5),
@@ -313,19 +373,26 @@ print(p)
 # plot(): RCP panels only
 p2 <- plot(res, panels = c("RCP_M1", "RCP_M2"))
 print(p2)
+}
 
+\donttest{
 # plot(): Overlay multiple conditions (varying correlation)
 make_sigma <- function(rho, k) {
   S <- matrix(rho, k, k); diag(S) <- 1; S
 }
+res0  <- rcpmcp_multiple(
+  delta = rep(0.3, 5), Sigma = diag(5),
+  N = 200, fs = c(0.1, 0.45, 0.45), K_max = 5
+)
 res05 <- rcpmcp_multiple(
   delta = rep(0.3, 5), Sigma = make_sigma(0.5, 5),
   N = 200, fs = c(0.1, 0.45, 0.45), K_max = 5
 )
-p3 <- plot(res,
+p3 <- plot(res0,
            overlay      = list(res05),
            group_labels = expression(rho == 0, rho == 0.5))
 print(p3)
+}
 
 }
 \seealso{

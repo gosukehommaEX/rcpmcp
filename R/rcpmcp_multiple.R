@@ -51,10 +51,18 @@
 #'               group_labels = c("Adjusted", "Unadjusted"))
 #' }
 #'
-#' @param delta Numeric vector of length \code{K_max}. True treatment effects
-#'   (mean differences) for each endpoint. All elements must be non-negative.
-#'   Zero values correspond to the null hypothesis and can be used to evaluate
-#'   type I error.
+#' @param delta Numeric vector of length \code{K_max} or a numeric matrix
+#'   of dimension \code{K_max}-by-\code{S}. When a vector is supplied, the
+#'   same treatment effect is assumed for all regions, that is,
+#'   \eqn{\delta_{k,s} = \delta_{k}} for all \eqn{s}. When a matrix is
+#'   supplied, element \code{delta[k, s]} represents the true treatment
+#'   effect for endpoint \eqn{k} in region \eqn{s}, allowing
+#'   region-specific treatment effects. For the evaluation with \eqn{K}
+#'   endpoints, only the first \eqn{K} rows of the matrix are used.
+#'   Region-specific treatment effects are only supported under
+#'   \code{approach = "simulation"}. All elements must be non-negative.
+#'   Zero values correspond to the null hypothesis and can be used to
+#'   evaluate type I error.
 #' @param Sigma \code{K_max}-by-\code{K_max} numeric variance-covariance
 #'   matrix for the \code{K_max} endpoints. Must be symmetric and positive
 #'   definite. \code{NULL} (default) sets \code{Sigma = diag(K_max)}, i.e.,
@@ -94,6 +102,14 @@
 #'   when \code{approach = "simulation"}. Default is \code{10000}.
 #' @param seed Non-negative integer. Random seed for reproducibility. Used
 #'   only when \code{approach = "simulation"}. Default is \code{1}.
+#' @param variance_known Logical scalar. If \code{TRUE} (default), the
+#'   common variance is treated as known and Wald-type Z-statistics with
+#'   normal critical values are used. If \code{FALSE}, the variance is
+#'   treated as unknown and t-statistics with degrees of freedom
+#'   \eqn{\nu = N - 2} are used; the sample variance-covariance matrix is
+#'   sampled from a Wishart distribution to avoid generating
+#'   individual-level data. Only supported under
+#'   \code{approach = "simulation"}.
 #'
 #' @return An object of class \code{"rcpmcp_multiple"}, which is a list
 #'   containing:
@@ -125,7 +141,7 @@
 #'   \code{\link{rcpmcp_get_gamma}}
 #'
 #' @importFrom mvtnorm pmvnorm
-#' @importFrom stats p.adjust pnorm qnorm rnorm
+#' @importFrom stats p.adjust pnorm pt qnorm qt rnorm rWishart
 #'
 #' @examples
 #' # Example 1: Scalar N, closed-form solution
@@ -142,6 +158,7 @@
 #' )
 #' print(result_formula)
 #'
+#' \donttest{
 #' # Example 2: Simulation (all four MCP methods computed simultaneously)
 #' result_sim <- rcpmcp_multiple(
 #'   delta    = rep(0.2, 5),
@@ -160,26 +177,84 @@
 #'
 #' # Example 3: Print selected MCP methods only
 #' print(result_sim, mcp_method = c("bonferroni", "holm"))
+#' }
+#'
+#' \donttest{
+#' # Example 4: Region-specific treatment effects (region 1 null)
+#' delta_mat <- matrix(c(rep(0, 5), rep(0.2, 5), rep(0.2, 5)),
+#'                     nrow = 5, ncol = 3, byrow = FALSE)
+#' result_mat <- rcpmcp_multiple(
+#'   delta    = delta_mat,
+#'   Sigma    = diag(5),
+#'   N        = 200,
+#'   fs       = c(0.1, 0.45, 0.45),
+#'   K_max    = 5,
+#'   gamma_M1 = 0.5,
+#'   gamma_M2 = 0,
+#'   alpha    = 0.025,
+#'   approach = "simulation",
+#'   nsim     = 10000,
+#'   seed     = 1
+#' )
+#' print(result_mat)
+#' }
+#'
+#' \donttest{
+#' # Example 5: Unknown variance (Wishart-sampled sample covariance)
+#' result_unk <- rcpmcp_multiple(
+#'   delta          = rep(0.2, 5),
+#'   Sigma          = diag(5),
+#'   N              = 200,
+#'   fs             = c(0.1, 0.45, 0.45),
+#'   K_max          = 5,
+#'   gamma_M1       = 0.5,
+#'   gamma_M2       = 0,
+#'   alpha          = 0.025,
+#'   approach       = "simulation",
+#'   nsim           = 10000,
+#'   seed           = 1,
+#'   variance_known = FALSE
+#' )
+#' print(result_unk)
+#' }
 #'
 #' @export
 rcpmcp_multiple <- function(delta,
-                            Sigma    = NULL,
+                            Sigma          = NULL,
                             N,
-                            fs       = c(0.1, 0.45, 0.45),
-                            K_max    = 5,
-                            gamma_M1 = 0.5,
-                            gamma_M2 = 0,
-                            alpha    = 0.025,
-                            approach = "formula",
-                            nsim     = 1e4,
-                            seed     = 1) {
+                            fs             = c(0.1, 0.45, 0.45),
+                            K_max          = 5,
+                            gamma_M1       = 0.5,
+                            gamma_M2       = 0,
+                            alpha          = 0.025,
+                            approach       = "formula",
+                            nsim           = 1e4,
+                            seed           = 1,
+                            variance_known = TRUE) {
 
   # ========== Input Validation ==========
-  if (!is.numeric(delta) || any(delta < 0)) {
-    stop("delta must be a numeric vector of non-negative values")
-  }
-  if (length(delta) != K_max) {
-    stop("length of delta must equal K_max")
+  # delta may be either a numeric vector of length K_max (region-homogeneous
+  # treatment effects) or a numeric K_max-by-S matrix (region-specific
+  # treatment effects, only allowed under approach = "simulation").
+  if (is.matrix(delta)) {
+    if (!is.numeric(delta) || any(delta < 0)) {
+      stop("delta must contain only non-negative numeric values")
+    }
+    if (nrow(delta) != K_max) {
+      stop("nrow(delta) must equal K_max when delta is supplied as a matrix")
+    }
+    if (ncol(delta) != length(fs)) {
+      stop("ncol(delta) must equal length(fs) when delta is a matrix")
+    }
+    delta_is_matrix <- TRUE
+  } else {
+    if (!is.numeric(delta) || any(delta < 0)) {
+      stop("delta must be a numeric vector of non-negative values")
+    }
+    if (length(delta) != K_max) {
+      stop("length of delta must equal K_max")
+    }
+    delta_is_matrix <- FALSE
   }
   if (!is.null(Sigma)) {
     if (!is.matrix(Sigma) || nrow(Sigma) != K_max || ncol(Sigma) != K_max) {
@@ -238,6 +313,20 @@ rcpmcp_multiple <- function(delta,
     if (!is.numeric(seed) || length(seed) != 1 ||
         seed < 0 || seed != as.integer(seed)) {
       stop("seed must be a single non-negative integer")
+    }
+  }
+  if (!is.logical(variance_known) || length(variance_known) != 1 ||
+      is.na(variance_known)) {
+    stop("variance_known must be a single logical value (TRUE or FALSE)")
+  }
+
+  # Formula branch only supports region-homogeneous delta and known variance.
+  if (approach == "formula") {
+    if (delta_is_matrix) {
+      stop('region-specific delta (matrix input) is only supported under approach = "simulation"')
+    }
+    if (!variance_known) {
+      stop('variance_known = FALSE is only supported under approach = "simulation"')
     }
   }
 
@@ -311,23 +400,30 @@ rcpmcp_multiple <- function(delta,
 
     for (k in seq_len(K_max)) {
       idx_k     <- seq_len(k)
-      delta_k   <- delta[idx_k]
+      # Slice delta: take the first k endpoints (rows). For matrix input,
+      # this preserves the K-by-S layout expected by rcpmcp_single.
+      if (delta_is_matrix) {
+        delta_k <- delta[idx_k, , drop = FALSE]
+      } else {
+        delta_k <- delta[idx_k]
+      }
       Sigma_k   <- Sigma_use[idx_k, idx_k, drop = FALSE]
       Sigma_arg <- if (all(Sigma_k == diag(k))) NULL else Sigma_k
 
       # rcpmcp_single computes all four MCP methods from a single random draw
       res_k <- rcpmcp_single(
-        delta    = delta_k,
-        Sigma    = Sigma_arg,
-        N        = N_vec[k],
-        fs       = fs,
-        K        = k,
-        gamma_M1 = gamma_M1_vec[k],
-        gamma_M2 = gamma_M2_vec[k],
-        alpha    = alpha,
-        approach = "simulation",
-        nsim     = nsim,
-        seed     = seed
+        delta          = delta_k,
+        Sigma          = Sigma_arg,
+        N              = N_vec[k],
+        fs             = fs,
+        K              = k,
+        gamma_M1       = gamma_M1_vec[k],
+        gamma_M2       = gamma_M2_vec[k],
+        alpha          = alpha,
+        approach       = "simulation",
+        nsim           = nsim,
+        seed           = seed,
+        variance_known = variance_known
       )
 
       # Store results for each MCP method
@@ -349,17 +445,18 @@ rcpmcp_multiple <- function(delta,
 
   # ========== Output ==========
   out <- list(
-    approach = approach,
-    nsim     = if (approach == "simulation") nsim else NULL,
-    delta    = delta,
-    Sigma    = Sigma_use,
-    N        = N,
-    fs       = fs,
-    K_max    = K_max,
-    gamma_M1 = gamma_M1,
-    gamma_M2 = gamma_M2,
-    alpha    = alpha,
-    result   = result
+    approach       = approach,
+    nsim           = if (approach == "simulation") nsim else NULL,
+    delta          = delta,
+    Sigma          = Sigma_use,
+    N              = N,
+    fs             = fs,
+    K_max          = K_max,
+    gamma_M1       = gamma_M1,
+    gamma_M2       = gamma_M2,
+    alpha          = alpha,
+    variance_known = variance_known,
+    result         = result
   )
   class(out) <- "rcpmcp_multiple"
   return(out)
@@ -407,9 +504,23 @@ print.rcpmcp_multiple <- function(x,
     cat("   Approach          : Closed-Form Solution (Bonferroni)\n")
   }
 
-  cat(sprintf("   Treatment effect  : delta    = (%s)\n",
-              paste(formatC(x$delta, format = "f", digits = digits),
-                    collapse = ", ")))
+  if (is.matrix(x$delta)) {
+    cat("   Treatment effect  : delta    = (K-by-S matrix)\n")
+    rownames_show <- paste0("                                E", seq_len(nrow(x$delta)))
+    colnames_show <- paste0("R", seq_len(ncol(x$delta)))
+    delta_fmt <- formatC(x$delta, format = "f", digits = digits)
+    cat(strrep(" ", 31), paste(formatC(colnames_show, width = max(nchar(delta_fmt)),
+                                       flag = " "), collapse = "  "), "\n", sep = "")
+    for (k in seq_len(nrow(x$delta))) {
+      cat(rownames_show[k], "  ",
+          paste(formatC(delta_fmt[k, ], width = max(nchar(delta_fmt)),
+                        flag = " "), collapse = "  "), "\n", sep = "")
+    }
+  } else {
+    cat(sprintf("   Treatment effect  : delta    = (%s)\n",
+                paste(formatC(x$delta, format = "f", digits = digits),
+                      collapse = ", ")))
+  }
   cat(sprintf("   Std. deviation    : sd       = (%s)\n",
               paste(formatC(sqrt(diag(x$Sigma)), format = "f", digits = digits),
                     collapse = ", ")))
@@ -443,6 +554,17 @@ print.rcpmcp_multiple <- function(x,
   }
 
   cat(sprintf("   Significance lvl  : alpha    = %.4f\n", x$alpha))
+  variance_known <- if (is.null(x$variance_known)) TRUE else x$variance_known
+  if (x$approach == "simulation") {
+    if (variance_known) {
+      cat("   Variance          : Known (Z-statistic, normal critical value)\n")
+    } else {
+      N_disp <- if (length(x$N) == 1L) x$N else x$N[1L]
+      cat(sprintf(
+        "   Variance          : Unknown (T-statistic, df = N - 2, Wishart-sampled)\n"
+      ))
+    }
+  }
 
   corr_use <- cov2cor(x$Sigma)
   is_indep <- all(abs(corr_use - diag(x$K_max)) < 1e-8)
@@ -565,12 +687,11 @@ print.rcpmcp_multiple <- function(x,
 #' @return \code{plot.rcpmcp_multiple} returns a \code{ggplot} object.
 #'   Save with \code{ggplot2::ggsave()}.
 #'
-#' @importFrom ggplot2 ggplot aes geom_line geom_point geom_hline
-#'   facet_wrap scale_x_continuous scale_y_continuous scale_colour_manual
-#'   theme_bw theme element_text element_rect element_blank margin unit
+#' @importFrom ggplot2 ggplot aes geom_line geom_point geom_hline facet_wrap scale_x_continuous scale_y_continuous scale_colour_manual theme_bw theme element_text element_rect element_blank margin unit
 #' @importFrom rlang .data
 #'
 #' @examples
+#' \donttest{
 #' # plot(): Single object, all three panels (default)
 #' res <- rcpmcp_multiple(
 #'   delta = rep(0.3, 5), Sigma = diag(5),
@@ -582,19 +703,26 @@ print.rcpmcp_multiple <- function(x,
 #' # plot(): RCP panels only
 #' p2 <- plot(res, panels = c("RCP_M1", "RCP_M2"))
 #' print(p2)
+#' }
 #'
+#' \donttest{
 #' # plot(): Overlay multiple conditions (varying correlation)
 #' make_sigma <- function(rho, k) {
 #'   S <- matrix(rho, k, k); diag(S) <- 1; S
 #' }
+#' res0  <- rcpmcp_multiple(
+#'   delta = rep(0.3, 5), Sigma = diag(5),
+#'   N = 200, fs = c(0.1, 0.45, 0.45), K_max = 5
+#' )
 #' res05 <- rcpmcp_multiple(
 #'   delta = rep(0.3, 5), Sigma = make_sigma(0.5, 5),
 #'   N = 200, fs = c(0.1, 0.45, 0.45), K_max = 5
 #' )
-#' p3 <- plot(res,
+#' p3 <- plot(res0,
 #'            overlay      = list(res05),
 #'            group_labels = expression(rho == 0, rho == 0.5))
 #' print(p3)
+#' }
 #'
 #' @export
 plot.rcpmcp_multiple <- function(x,

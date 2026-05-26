@@ -64,6 +64,7 @@
 #' @importFrom utils combn
 #'
 #' @examples
+#' \donttest{
 #' # Example 1: K_max = 5, independent endpoints
 #' ss_mult <- ssmcp_multiple(
 #'   delta        = rep(0.2, 5),
@@ -74,7 +75,9 @@
 #'   target_power = 0.8
 #' )
 #' print(ss_mult)
+#' }
 #'
+#' \donttest{
 #' # Example 2: K_max = 5, uniform correlation rho = 0.5
 #' rho              <- 0.5
 #' Sigma_corr       <- matrix(rho, nrow = 5, ncol = 5)
@@ -88,6 +91,7 @@
 #'   target_power = 0.8
 #' )
 #' print(ss_corr)
+#' }
 #'
 #' @export
 ssmcp_multiple <- function(delta,

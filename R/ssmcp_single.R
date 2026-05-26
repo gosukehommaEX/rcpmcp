@@ -87,6 +87,7 @@
 #' )
 #' print(ss1)
 #'
+#' \donttest{
 #' # Example 2: K = 3, independent endpoints
 #' ss3 <- ssmcp_single(
 #'   delta        = c(0.2, 0.2, 0.2),
@@ -97,6 +98,7 @@
 #'   target_power = 0.8
 #' )
 #' print(ss3)
+#' }
 #'
 #' @export
 ssmcp_single <- function(delta,

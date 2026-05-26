@@ -17,7 +17,8 @@ rcpmcp_single(
   alpha = 0.025,
   approach = "formula",
   nsim = 10000,
-  seed = 1
+  seed = 1,
+  variance_known = TRUE
 )
 
 \method{print}{rcpmcp_single}(
@@ -28,10 +29,16 @@ rcpmcp_single(
 )
 }
 \arguments{
-\item{delta}{Numeric vector of length \code{k}. True treatment effects
-(mean differences) for each endpoint. All elements must be non-negative.
-Zero values correspond to the null hypothesis and can be used to evaluate
-type I error.}
+\item{delta}{Numeric vector of length \code{K} or a numeric matrix of
+dimension \code{K}-by-\code{S}. When a vector is supplied, the same
+treatment effect is assumed for all regions, that is,
+\eqn{\delta_{k,s} = \delta_{k}} for all \eqn{s}. When a matrix is
+supplied, element \code{delta[k, s]} represents the true treatment
+effect for endpoint \eqn{k} in region \eqn{s}, allowing
+region-specific treatment effects. Region-specific treatment effects
+are only supported under \code{approach = "simulation"}. All elements
+must be non-negative. Zero values correspond to the null hypothesis
+and can be used to evaluate type I error.}
 
 \item{Sigma}{\code{K}-by-\code{K} numeric variance-covariance matrix for
 the \code{K} endpoints. Must be symmetric and positive definite, with
@@ -71,6 +78,15 @@ when \code{approach = "simulation"}. Default is \code{10000}.}
 
 \item{seed}{Non-negative integer. Random seed for reproducibility. Used
 only when \code{approach = "simulation"}. Default is \code{1}.}
+
+\item{variance_known}{Logical scalar. If \code{TRUE} (default), the
+common variance is treated as known and Wald-type Z-statistics with
+normal critical values are used. If \code{FALSE}, the variance is
+treated as unknown and Welch-pool t-statistics with degrees of freedom
+\eqn{\nu = N - 2} are used; the sample variance-covariance matrix is
+sampled from a Wishart distribution to avoid generating
+individual-level data. Only supported under
+\code{approach = "simulation"}.}
 
 \item{x}{An object of class \code{"rcpmcp_single"}.}
 
@@ -188,6 +204,7 @@ result1 <- rcpmcp_single(
 )
 print(result1)
 
+\donttest{
 # Example 2: Simulation (all four MCP methods from a single random draw)
 result2 <- rcpmcp_single(
   delta    = c(0.2, 0.2, 0.2),
@@ -206,5 +223,46 @@ print(result2)
 
 # Example 3: Print selected MCP methods only
 print(result2, mcp_method = c("bonferroni", "holm"))
+}
+
+\donttest{
+# Example 4: Region-specific treatment effects (e.g., null effect in region 1)
+delta_mat <- matrix(c(0.0, 0.0, 0.0,
+                      0.2, 0.2, 0.2,
+                      0.2, 0.2, 0.2), nrow = 3, ncol = 3, byrow = FALSE)
+result4 <- rcpmcp_single(
+  delta    = delta_mat,
+  Sigma    = diag(3),
+  N        = 200,
+  fs       = c(0.1, 0.45, 0.45),
+  K        = 3,
+  gamma_M1 = 0.5,
+  gamma_M2 = 0,
+  alpha    = 0.025,
+  approach = "simulation",
+  nsim     = 10000,
+  seed     = 1
+)
+print(result4)
+}
+
+\donttest{
+# Example 5: Unknown variance (Wishart-sampled sample covariance)
+result5 <- rcpmcp_single(
+  delta          = c(0.2, 0.2, 0.2),
+  Sigma          = diag(3),
+  N              = 200,
+  fs             = c(0.1, 0.45, 0.45),
+  K              = 3,
+  gamma_M1       = 0.5,
+  gamma_M2       = 0,
+  alpha          = 0.025,
+  approach       = "simulation",
+  nsim           = 10000,
+  seed           = 1,
+  variance_known = FALSE
+)
+print(result5)
+}
 
 }

@@ -30,8 +30,8 @@ devtools::install_github("gosukehommaEX/rcpmcp")
 
 | Function | Description |
 |---|---|
-| `rcpmcp_single()` | RCP and power for a fixed number of endpoints K |
-| `rcpmcp_multiple()` | RCP and power across K = 1, ..., K_max endpoints |
+| `rcpmcp_single()` | RCP and power for a fixed number of endpoints K. Supports region-specific treatment effects and unknown-variance sensitivity analysis under `approach = "simulation"`. |
+| `rcpmcp_multiple()` | RCP and power across K = 1, ..., K_max endpoints. Inherits the simulation extensions of `rcpmcp_single()`. |
 | `rcpmcp_get_gamma()` | Adjusted consistency thresholds via root-finding |
 | `ssmcp_single()` | Sample size for a fixed K (Bonferroni) |
 | `ssmcp_multiple()` | Sample size across K = 1, ..., K_max (Bonferroni) |
@@ -130,6 +130,41 @@ plot(res_adj,
      overlay      = list(res_unadj),
      group_labels = c("Adjusted", "Unadjusted"))
 ```
+
+### 4. Sensitivity analyses (new in v0.1.1)
+
+The simulation branch of `rcpmcp_single()` (and `rcpmcp_multiple()`) supports two extensions for sensitivity analyses:
+
+- **Region-specific treatment effects**: supply `delta` as a `K`-by-`S` matrix, where element `delta[k, s]` is the true treatment effect for endpoint `k` in region `s`. This allows evaluation of scenarios in which the regional effect departs from the global effect.
+- **Unknown variance**: set `variance_known = FALSE` to switch the overall test from a Z-statistic (normal critical value) to a t-statistic with degrees of freedom `nu = N - 2`. The sample variance-covariance matrix is drawn from a Wishart distribution, avoiding the need to generate individual-level data.
+
+The following example combines both extensions. Region 1 has zero treatment effect for all endpoints, while regions 2 and 3 have a treatment effect of 0.2. The variance is treated as unknown.
+
+```r
+# Region 1 is null; regions 2-3 have delta = 0.2 for all three endpoints
+delta_mat <- matrix(c(0.0, 0.2, 0.2,
+                      0.0, 0.2, 0.2,
+                      0.0, 0.2, 0.2),
+                    nrow = 3, ncol = 3, byrow = TRUE)
+
+result_sens <- rcpmcp_single(
+  delta          = delta_mat,
+  Sigma          = diag(3),
+  N              = 200,
+  fs             = c(0.1, 0.45, 0.45),
+  K              = 3,
+  gamma_M1       = 0.5,
+  gamma_M2       = 0,
+  alpha          = 0.025,
+  approach       = "simulation",
+  nsim           = 10000,
+  seed           = 1,
+  variance_known = FALSE
+)
+print(result_sens)
+```
+
+Both extensions are only supported under `approach = "simulation"`. The closed-form (`approach = "formula"`) solution is preserved unchanged from earlier versions.
 
 ## Reproducibility
 

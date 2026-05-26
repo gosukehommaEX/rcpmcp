@@ -96,6 +96,7 @@ power achieved under a step-down procedure at a given \eqn{N}, use
 the corresponding \code{mcp_method}.
 }
 \examples{
+\donttest{
 # Example 1: K_max = 5, independent endpoints
 ss_mult <- ssmcp_multiple(
   delta        = rep(0.2, 5),
@@ -106,7 +107,9 @@ ss_mult <- ssmcp_multiple(
   target_power = 0.8
 )
 print(ss_mult)
+}
 
+\donttest{
 # Example 2: K_max = 5, uniform correlation rho = 0.5
 rho              <- 0.5
 Sigma_corr       <- matrix(rho, nrow = 5, ncol = 5)
@@ -120,6 +123,7 @@ ss_corr <- ssmcp_multiple(
   target_power = 0.8
 )
 print(ss_corr)
+}
 
 }
 \seealso{

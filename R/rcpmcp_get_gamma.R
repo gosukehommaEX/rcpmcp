@@ -94,6 +94,7 @@
 #' @importFrom stats pnorm qnorm uniroot cov2cor
 #'
 #' @examples
+#' \donttest{
 #' # Example 1: Scalar N, independent endpoints
 #' gamma_result <- rcpmcp_get_gamma(
 #'   Sigma    = diag(5),
@@ -105,7 +106,9 @@
 #'   alpha    = 0.025
 #' )
 #' print(gamma_result)
+#' }
 #'
+#' \donttest{
 #' # Example 2: Vector N from ssmcp_multiple
 #' ss <- ssmcp_multiple(
 #'   delta        = rep(0.2, 5),
@@ -125,6 +128,7 @@
 #'   alpha    = 0.025
 #' )
 #' print(gamma_vec)
+#' }
 #'
 #' @export
 rcpmcp_get_gamma <- function(Sigma    = NULL,
@@ -503,13 +507,11 @@ print.rcpmcp_gamma <- function(x, digits = 4, ...) {
 #' @return \code{plot.rcpmcp_gamma} returns a \code{ggplot} object.
 #'   Save with \code{ggplot2::ggsave()}.
 #'
-#' @importFrom ggplot2 ggplot aes geom_line geom_point geom_hline
-#'   facet_wrap label_parsed scale_x_continuous scale_y_continuous
-#'   scale_colour_manual theme_bw theme element_text element_rect
-#'   element_blank margin unit
+#' @importFrom ggplot2 ggplot aes geom_line geom_point geom_hline facet_wrap label_parsed scale_x_continuous scale_y_continuous scale_colour_manual theme_bw theme element_text element_rect element_blank margin unit
 #' @importFrom rlang .data
 #'
 #' @examples
+#' \donttest{
 #' # plot(): Single object, all four panels (default)
 #' gamma_res <- rcpmcp_get_gamma(
 #'   Sigma = diag(5), N = 200,
@@ -522,19 +524,27 @@ print.rcpmcp_gamma <- function(x, digits = 4, ...) {
 #' # plot(): Threshold panels only
 #' p2 <- plot(gamma_res, panels = c("gamma_M1", "gamma_M2"))
 #' print(p2)
+#' }
 #'
+#' \donttest{
 #' # plot(): Overlay multiple conditions with Greek rho in legend
 #' make_sigma <- function(rho, k) {
 #'   S <- matrix(rho, k, k); diag(S) <- 1; S
 #' }
+#' gamma_res_overlay <- rcpmcp_get_gamma(
+#'   Sigma = diag(5), N = 200,
+#'   fs = c(0.1, 0.45, 0.45), K_max = 5,
+#'   gamma_M1 = 0.5, gamma_M2 = 0, alpha = 0.025
+#' )
 #' gamma05 <- rcpmcp_get_gamma(
 #'   Sigma = make_sigma(0.5, 5), N = 200,
 #'   fs = c(0.1, 0.45, 0.45), K_max = 5
 #' )
-#' p3 <- plot(gamma_res,
+#' p3 <- plot(gamma_res_overlay,
 #'            overlay      = list(gamma05),
 #'            group_labels = expression(rho == 0, rho == 0.5))
 #' print(p3)
+#' }
 #'
 #' @export
 plot.rcpmcp_gamma <- function(x,

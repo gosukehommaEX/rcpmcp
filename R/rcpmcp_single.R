@@ -355,10 +355,16 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
 #'     \eqn{\hat{\delta}_{sj} > \gamma_{M2}} for all \eqn{s = 1, \ldots, S}.
 #' }
 #'
-#' @param delta Numeric vector of length \code{k}. True treatment effects
-#'   (mean differences) for each endpoint. All elements must be non-negative.
-#'   Zero values correspond to the null hypothesis and can be used to evaluate
-#'   type I error.
+#' @param delta Numeric vector of length \code{K} or a numeric matrix of
+#'   dimension \code{K}-by-\code{S}. When a vector is supplied, the same
+#'   treatment effect is assumed for all regions, that is,
+#'   \eqn{\delta_{k,s} = \delta_{k}} for all \eqn{s}. When a matrix is
+#'   supplied, element \code{delta[k, s]} represents the true treatment
+#'   effect for endpoint \eqn{k} in region \eqn{s}, allowing
+#'   region-specific treatment effects. Region-specific treatment effects
+#'   are only supported under \code{approach = "simulation"}. All elements
+#'   must be non-negative. Zero values correspond to the null hypothesis
+#'   and can be used to evaluate type I error.
 #' @param Sigma \code{K}-by-\code{K} numeric variance-covariance matrix for
 #'   the \code{K} endpoints. Must be symmetric and positive definite, with
 #'   diagonal elements representing the variance of each endpoint's treatment
@@ -388,6 +394,14 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
 #'   when \code{approach = "simulation"}. Default is \code{10000}.
 #' @param seed Non-negative integer. Random seed for reproducibility. Used
 #'   only when \code{approach = "simulation"}. Default is \code{1}.
+#' @param variance_known Logical scalar. If \code{TRUE} (default), the
+#'   common variance is treated as known and Wald-type Z-statistics with
+#'   normal critical values are used. If \code{FALSE}, the variance is
+#'   treated as unknown and Welch-pool t-statistics with degrees of freedom
+#'   \eqn{\nu = N - 2} are used; the sample variance-covariance matrix is
+#'   sampled from a Wishart distribution to avoid generating
+#'   individual-level data. Only supported under
+#'   \code{approach = "simulation"}.
 #'
 #' @return An object of class \code{"rcpmcp_single"}, which is a list
 #'   containing:
@@ -417,7 +431,7 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
 #' }
 #'
 #' @importFrom mvtnorm pmvnorm
-#' @importFrom stats p.adjust pnorm qnorm rnorm cov2cor
+#' @importFrom stats p.adjust pnorm pt qnorm qt rnorm rWishart cov2cor
 #' @importFrom utils combn
 #'
 #' @examples
@@ -434,6 +448,7 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
 #' )
 #' print(result1)
 #'
+#' \donttest{
 #' # Example 2: Simulation (all four MCP methods from a single random draw)
 #' result2 <- rcpmcp_single(
 #'   delta    = c(0.2, 0.2, 0.2),
@@ -452,26 +467,85 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
 #'
 #' # Example 3: Print selected MCP methods only
 #' print(result2, mcp_method = c("bonferroni", "holm"))
+#' }
+#'
+#' \donttest{
+#' # Example 4: Region-specific treatment effects (e.g., null effect in region 1)
+#' delta_mat <- matrix(c(0.0, 0.0, 0.0,
+#'                       0.2, 0.2, 0.2,
+#'                       0.2, 0.2, 0.2), nrow = 3, ncol = 3, byrow = FALSE)
+#' result4 <- rcpmcp_single(
+#'   delta    = delta_mat,
+#'   Sigma    = diag(3),
+#'   N        = 200,
+#'   fs       = c(0.1, 0.45, 0.45),
+#'   K        = 3,
+#'   gamma_M1 = 0.5,
+#'   gamma_M2 = 0,
+#'   alpha    = 0.025,
+#'   approach = "simulation",
+#'   nsim     = 10000,
+#'   seed     = 1
+#' )
+#' print(result4)
+#' }
+#'
+#' \donttest{
+#' # Example 5: Unknown variance (Wishart-sampled sample covariance)
+#' result5 <- rcpmcp_single(
+#'   delta          = c(0.2, 0.2, 0.2),
+#'   Sigma          = diag(3),
+#'   N              = 200,
+#'   fs             = c(0.1, 0.45, 0.45),
+#'   K              = 3,
+#'   gamma_M1       = 0.5,
+#'   gamma_M2       = 0,
+#'   alpha          = 0.025,
+#'   approach       = "simulation",
+#'   nsim           = 10000,
+#'   seed           = 1,
+#'   variance_known = FALSE
+#' )
+#' print(result5)
+#' }
 #'
 #' @export
 rcpmcp_single <- function(delta,
-                          Sigma    = NULL,
+                          Sigma          = NULL,
                           N,
-                          fs       = c(0.1, 0.45, 0.45),
-                          K        = 1,
-                          gamma_M1 = 0.5,
-                          gamma_M2 = 0,
-                          alpha    = 0.025,
-                          approach = "formula",
-                          nsim     = 1e4,
-                          seed     = 1) {
+                          fs             = c(0.1, 0.45, 0.45),
+                          K              = 1,
+                          gamma_M1       = 0.5,
+                          gamma_M2       = 0,
+                          alpha          = 0.025,
+                          approach       = "formula",
+                          nsim           = 1e4,
+                          seed           = 1,
+                          variance_known = TRUE) {
 
   # ========== Input Validation ==========
-  if (!is.numeric(delta) || any(delta < 0)) {
-    stop("delta must be a numeric vector of non-negative values")
-  }
-  if (length(delta) != K) {
-    stop("length of delta must equal K")
+  # delta may be either a numeric vector of length K (region-homogeneous
+  # treatment effects) or a numeric K-by-S matrix (region-specific
+  # treatment effects, only allowed under approach = "simulation").
+  if (is.matrix(delta)) {
+    if (!is.numeric(delta) || any(delta < 0)) {
+      stop("delta must contain only non-negative numeric values")
+    }
+    if (nrow(delta) != K) {
+      stop("nrow(delta) must equal K when delta is supplied as a matrix")
+    }
+    if (ncol(delta) != length(fs)) {
+      stop("ncol(delta) must equal length(fs) when delta is a matrix")
+    }
+    delta_is_matrix <- TRUE
+  } else {
+    if (!is.numeric(delta) || any(delta < 0)) {
+      stop("delta must be a numeric vector of non-negative values")
+    }
+    if (length(delta) != K) {
+      stop("length of delta must equal K")
+    }
+    delta_is_matrix <- FALSE
   }
   if (!is.null(Sigma)) {
     if (!is.matrix(Sigma) || nrow(Sigma) != K || ncol(Sigma) != K) {
@@ -520,6 +594,20 @@ rcpmcp_single <- function(delta,
       stop("seed must be a single non-negative integer")
     }
   }
+  if (!is.logical(variance_known) || length(variance_known) != 1 ||
+      is.na(variance_known)) {
+    stop("variance_known must be a single logical value (TRUE or FALSE)")
+  }
+
+  # Formula branch only supports region-homogeneous delta and known variance.
+  if (approach == "formula") {
+    if (delta_is_matrix) {
+      stop('region-specific delta (matrix input) is only supported under approach = "simulation"')
+    }
+    if (!variance_known) {
+      stop('variance_known = FALSE is only supported under approach = "simulation"')
+    }
+  }
 
   # ========== Common Setup ==========
   Sigma_use <- if (is.null(Sigma)) diag(K) else Sigma
@@ -566,8 +654,17 @@ rcpmcp_single <- function(delta,
     Ns    <- floor(fs * N)
     Ns[S] <- N - sum(Ns[-S])
 
-    se_overall <- sqrt(diag(Sigma_use)) / sqrt(N)
+    sd_j       <- sqrt(diag(Sigma_use))
+    se_overall <- sd_j / sqrt(N)
     alpha_adj  <- alpha / K
+
+    # Build the K-by-S matrix of region-specific true treatment effects.
+    # When delta is supplied as a vector, broadcast it across all S regions.
+    if (delta_is_matrix) {
+      delta_mat <- delta
+    } else {
+      delta_mat <- matrix(delta, nrow = K, ncol = S, byrow = FALSE)
+    }
 
     set.seed(seed)
 
@@ -575,15 +672,16 @@ rcpmcp_single <- function(delta,
     # Generate a single set of random draws shared across all MCP methods.
     # hat_delta_s_arr: nsim-by-K-by-S array of regional treatment effect
     # estimates. For region s, the K-dimensional vector of regional means
-    # follows a multivariate normal distribution with mean delta and
-    # variance-covariance matrix Sigma_use / Ns[s]. Regions are independent.
+    # follows a multivariate normal distribution with mean delta_mat[, s]
+    # and variance-covariance matrix Sigma_use / Ns[s]. Regions are
+    # independent.
     # ------------------------------------------------------------------
     hat_delta_s_arr <- array(NA_real_, dim = c(nsim, K, S))
     for (s in seq_len(S)) {
       Sigma_s <- Sigma_use / Ns[s]
       L_s     <- t(chol(Sigma_s))
       Z_raw   <- matrix(stats::rnorm(nsim * K), nrow = K, ncol = nsim)
-      hat_s   <- L_s %*% Z_raw + delta
+      hat_s   <- L_s %*% Z_raw + delta_mat[, s]
       hat_delta_s_arr[, , s] <- t(hat_s)
     }
 
@@ -594,14 +692,48 @@ rcpmcp_single <- function(delta,
         fs[s] * hat_delta_s_arr[, , s]
     }
 
-    # One-sided p-values: p_j = 1 - Phi(Z_j), where Z_j = hat_delta_j / se_j
+    # ------------------------------------------------------------------
+    # Compute one-sided p-values for the overall test of each endpoint.
+    #
+    # When variance_known = TRUE, Wald-type Z-statistics are compared to
+    # the standard normal distribution.
+    #
+    # When variance_known = FALSE, the sample variance-covariance matrix
+    # is sampled from a Wishart distribution with nu = N - 2 degrees of
+    # freedom and scale matrix Sigma_use / (N - 2). This avoids the need
+    # to generate individual-level data. The diagonal elements supply
+    # endpoint-specific sample variances used in the t-statistic
+    # denominator, and p-values are obtained from the t distribution with
+    # nu degrees of freedom.
+    # ------------------------------------------------------------------
     p_mat <- matrix(NA_real_, nrow = nsim, ncol = K)
-    for (j in seq_len(K)) {
-      Z_j        <- hat_delta_overall[, j] / se_overall[j]
-      p_mat[, j] <- 1 - stats::pnorm(Z_j)
+    if (variance_known) {
+      for (j in seq_len(K)) {
+        Z_j        <- hat_delta_overall[, j] / se_overall[j]
+        p_mat[, j] <- 1 - stats::pnorm(Z_j)
+      }
+    } else {
+      nu          <- N - 2L
+      if (nu < 1L) {
+        stop("variance_known = FALSE requires N >= 3 (degrees of freedom >= 1)")
+      }
+      # rWishart returns a K-by-K-by-nsim array of Wishart(nu, Sigma_use/nu)
+      # draws. The diagonal element [j, j, i] is the sample variance for
+      # endpoint j in simulation i.
+      W_arr  <- stats::rWishart(nsim, df = nu, Sigma = Sigma_use / nu)
+      hat_sd <- matrix(NA_real_, nrow = nsim, ncol = K)
+      for (j in seq_len(K)) {
+        hat_sd[, j] <- sqrt(W_arr[j, j, ])
+      }
+      for (j in seq_len(K)) {
+        T_j        <- hat_delta_overall[, j] / (hat_sd[, j] / sqrt(N))
+        p_mat[, j] <- 1 - stats::pt(T_j, df = nu)
+      }
     }
 
-    # Consistency flags are independent of mcp_method: compute once
+    # Consistency flags are independent of mcp_method: compute once.
+    # Method 1 and Method 2 criteria use only point estimates of treatment
+    # effects, so they do not depend on whether the variance is known.
     consist_m1 <- matrix(FALSE, nrow = nsim, ncol = K)
     consist_m2 <- matrix(FALSE, nrow = nsim, ncol = K)
     for (j in seq_len(K)) {
@@ -659,6 +791,7 @@ rcpmcp_single <- function(delta,
     gamma_M2       = gamma_M2,
     alpha          = alpha,
     alpha_adj      = alpha_adj,
+    variance_known = variance_known,
     formula_result = formula_result,
     sim_results    = sim_results
   )
@@ -711,9 +844,23 @@ print.rcpmcp_single <- function(x,
     cat("   Approach          : Closed-Form Solution (Bonferroni)\n")
   }
 
-  cat(sprintf("   Treatment effect  : delta    = (%s)\n",
-              paste(formatC(x$delta, format = "f", digits = digits),
-                    collapse = ", ")))
+  if (is.matrix(x$delta)) {
+    cat("   Treatment effect  : delta    = (K-by-S matrix)\n")
+    rownames_show <- paste0("                                E", seq_len(nrow(x$delta)))
+    colnames_show <- paste0("R", seq_len(ncol(x$delta)))
+    delta_fmt <- formatC(x$delta, format = "f", digits = digits)
+    cat(strrep(" ", 31), paste(formatC(colnames_show, width = max(nchar(delta_fmt)),
+                                       flag = " "), collapse = "  "), "\n", sep = "")
+    for (k in seq_len(nrow(x$delta))) {
+      cat(rownames_show[k], "  ",
+          paste(formatC(delta_fmt[k, ], width = max(nchar(delta_fmt)),
+                        flag = " "), collapse = "  "), "\n", sep = "")
+    }
+  } else {
+    cat(sprintf("   Treatment effect  : delta    = (%s)\n",
+                paste(formatC(x$delta, format = "f", digits = digits),
+                      collapse = ", ")))
+  }
   cat(sprintf("   Std. deviation    : sd       = (%s)\n",
               paste(formatC(sqrt(diag(x$Sigma)), format = "f", digits = digits),
                     collapse = ", ")))
@@ -725,6 +872,17 @@ print.rcpmcp_single <- function(x,
   cat(sprintf("   Threshold (M2)    : gamma_M2 = %.4f\n", x$gamma_M2))
   cat(sprintf("   Significance lvl  : alpha    = %.4f\n", x$alpha))
   cat(sprintf("   Adjusted level    : alpha/K  = %.4f\n", x$alpha_adj))
+  variance_known <- if (is.null(x$variance_known)) TRUE else x$variance_known
+  if (x$approach == "simulation") {
+    if (variance_known) {
+      cat("   Variance          : Known (Z-statistic, normal critical value)\n")
+    } else {
+      cat(sprintf(
+        "   Variance          : Unknown (T-statistic, df = %d, Wishart-sampled)\n",
+        x$N - 2L
+      ))
+    }
+  }
 
   corr_use <- cov2cor(x$Sigma)
   is_indep <- all(abs(corr_use - diag(x$K)) < 1e-8)

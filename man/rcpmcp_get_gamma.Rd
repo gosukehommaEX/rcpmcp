@@ -88,7 +88,7 @@ Default is \code{NULL} (auto-generated labels).}
 
 \item{panels}{Character vector selecting which panels to display. Any
 non-empty subset of \code{c("gamma_M1", "gamma_M2", "RCP0_M1",
-  "RCP0_M2")}. The display order is fixed as listed. Default shows all
+"RCP0_M2")}. The display order is fixed as listed. Default shows all
 four panels.}
 
 \item{show_reference}{Logical. If \code{TRUE} (default), horizontal
@@ -204,6 +204,7 @@ be flat at the reference value.
 }
 }
 \examples{
+\donttest{
 # Example 1: Scalar N, independent endpoints
 gamma_result <- rcpmcp_get_gamma(
   Sigma    = diag(5),
@@ -215,7 +216,9 @@ gamma_result <- rcpmcp_get_gamma(
   alpha    = 0.025
 )
 print(gamma_result)
+}
 
+\donttest{
 # Example 2: Vector N from ssmcp_multiple
 ss <- ssmcp_multiple(
   delta        = rep(0.2, 5),
@@ -235,7 +238,9 @@ gamma_vec <- rcpmcp_get_gamma(
   alpha    = 0.025
 )
 print(gamma_vec)
+}
 
+\donttest{
 # plot(): Single object, all four panels (default)
 gamma_res <- rcpmcp_get_gamma(
   Sigma = diag(5), N = 200,
@@ -248,19 +253,27 @@ print(p)
 # plot(): Threshold panels only
 p2 <- plot(gamma_res, panels = c("gamma_M1", "gamma_M2"))
 print(p2)
+}
 
+\donttest{
 # plot(): Overlay multiple conditions with Greek rho in legend
 make_sigma <- function(rho, k) {
   S <- matrix(rho, k, k); diag(S) <- 1; S
 }
+gamma_res_overlay <- rcpmcp_get_gamma(
+  Sigma = diag(5), N = 200,
+  fs = c(0.1, 0.45, 0.45), K_max = 5,
+  gamma_M1 = 0.5, gamma_M2 = 0, alpha = 0.025
+)
 gamma05 <- rcpmcp_get_gamma(
   Sigma = make_sigma(0.5, 5), N = 200,
   fs = c(0.1, 0.45, 0.45), K_max = 5
 )
-p3 <- plot(gamma_res,
+p3 <- plot(gamma_res_overlay,
            overlay      = list(gamma05),
            group_labels = expression(rho == 0, rho == 0.5))
 print(p3)
+}
 
 }
 \seealso{
