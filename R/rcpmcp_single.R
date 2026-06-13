@@ -107,12 +107,22 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
 #' @param gamma_M1  Numeric scalar. Effect retention threshold for Method 1.
 #' @param gamma_M2  Numeric scalar. Consistency threshold for Method 2.
 #' @param power_out Numeric scalar. Pre-computed Power (denominator for RCP).
+#' @param which     Character scalar. One of \code{"both"} (default),
+#'   \code{"m1"}, or \code{"m2"}. Selects which numerator(s) to evaluate.
+#'   Choosing \code{"m1"} or \code{"m2"} skips the multivariate normal
+#'   integration for the other method, which is used by
+#'   \code{\link{rcpmcp_get_gamma}} to avoid evaluating discarded integrals
+#'   during \code{uniroot} iterations.
 #'
-#' @return A named list with \code{RCP_M1} and \code{RCP_M2}.
+#' @return A named list with \code{RCP_M1} and \code{RCP_M2}. The entry
+#'   corresponding to a method that was not requested via \code{which} is
+#'   returned as \code{NA_real_}.
 #'
 #' @keywords internal
 .rcpmcp_formula_rcp_only <- function(pre, delta, Sigma_use,
-                                     gamma_M1, gamma_M2, power_out) {
+                                     gamma_M1, gamma_M2, power_out,
+                                     which = "both") {
+  which <- match.arg(which, c("both", "m1", "m2"))
   S           <- pre$S
   Ns          <- pre$Ns
   f1          <- pre$f1
@@ -241,15 +251,17 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
   # Inclusion-exclusion for M1 and M2 numerators only
   numer_m1 <- 0
   numer_m2 <- 0
+  do_m1    <- which %in% c("both", "m1")
+  do_m2    <- which %in% c("both", "m2")
   for (sub in all_subsets) {
-    sign     <- (-1)^(length(sub) + 1L)
-    numer_m1 <- numer_m1 + sign * .prob_m1_subset(sub)
-    numer_m2 <- numer_m2 + sign * .prob_m2_subset(sub)
+    sign <- (-1)^(length(sub) + 1L)
+    if (do_m1) numer_m1 <- numer_m1 + sign * .prob_m1_subset(sub)
+    if (do_m2) numer_m2 <- numer_m2 + sign * .prob_m2_subset(sub)
   }
 
   list(
-    RCP_M1 = if (power_out > 0) numer_m1 / power_out else NA_real_,
-    RCP_M2 = if (power_out > 0) numer_m2 / power_out else NA_real_
+    RCP_M1 = if (do_m1 && power_out > 0) numer_m1 / power_out else NA_real_,
+    RCP_M2 = if (do_m2 && power_out > 0) numer_m2 / power_out else NA_real_
   )
 }
 
@@ -297,6 +309,160 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
     pw <- pw + (-1)^(length(sub) + 1L) * .prob_power_subset(sub)
   }
   pw
+}
+
+
+# =============================================================================
+# Internal helper: vectorized multiplicity adjustment over a matrix of p-values
+# =============================================================================
+
+#' Ascending Row Ranks with Stable Tie-Breaking
+#'
+#' @description
+#' An internal helper that computes, for each row of \code{P}, the ascending
+#' rank of every element within that row. Ties are broken by column index
+#' (the element in the earlier column receives the smaller rank), matching
+#' the default stable behaviour of \code{\link[base]{order}}. The computation
+#' is fully vectorized over rows: it loops only over the (small) number of
+#' columns, never over the number of rows.
+#'
+#' @param P A numeric matrix of dimension \code{nsim}-by-\code{K}.
+#'
+#' @return An integer matrix of the same dimension as \code{P} with values in
+#'   \code{1:K}, where entry \code{[i, j]} is the rank of \code{P[i, j]} among
+#'   the elements of row \code{i}.
+#'
+#' @keywords internal
+.rcpmcp_row_ranks <- function(P) {
+  nsim <- nrow(P)
+  K    <- ncol(P)
+  R    <- matrix(0L, nrow = nsim, ncol = K)
+  for (a in seq_len(K)) {
+    less <- integer(nsim)
+    for (b in seq_len(K)) {
+      if (b == a) next
+      if (b < a) {
+        less <- less + (P[, b] <= P[, a])
+      } else {
+        less <- less + (P[, b] < P[, a])
+      }
+    }
+    R[, a] <- less + 1L
+  }
+  R
+}
+
+
+#' Vectorized Multiplicity Adjustment over a Matrix of p-values
+#'
+#' @description
+#' An internal helper that applies a familywise multiplicity adjustment to
+#' every row of a matrix of raw p-values at once, returning a matrix of
+#' adjusted p-values. Each row is treated as an independent family of
+#' \code{K} hypotheses, so that row \code{i} of the output equals
+#' \code{stats::p.adjust(P[i, ], method = method)}. The four supported
+#' procedures (\code{"bonferroni"}, \code{"holm"}, \code{"hochberg"},
+#' \code{"hommel"}) are implemented with column-wise cumulative operations on
+#' a row-sorted matrix, so the only loops run over the (small) number of
+#' endpoints rather than over the (large) number of simulation replicates.
+#'
+#' The implementation reproduces the algorithm used by
+#' \code{\link[stats]{p.adjust}}, including the convention that for
+#' \code{K = 2} the Hommel procedure coincides with Hochberg.
+#'
+#' @param P A numeric matrix of dimension \code{nsim}-by-\code{K} of raw
+#'   one-sided p-values.
+#' @param method Character scalar. One of \code{"bonferroni"}, \code{"holm"},
+#'   \code{"hochberg"}, \code{"hommel"}.
+#' @param K Positive integer. Number of endpoints (columns of \code{P}).
+#'
+#' @return A numeric matrix of adjusted p-values with the same dimension as
+#'   \code{P}.
+#'
+#' @keywords internal
+.rcpmcp_padjust_matrix <- function(P, method, K) {
+  nsim <- nrow(P)
+  if (K == 1L) {
+    return(P)
+  }
+  mth <- method
+  if (K == 2L && method == "hommel") {
+    mth <- "hochberg"
+  }
+
+  if (mth == "bonferroni") {
+    out <- pmin(K * P, 1)
+    dim(out) <- c(nsim, K)
+    return(out)
+  }
+
+  R    <- .rcpmcp_row_ranks(P)
+  ridx <- seq_len(nsim)
+  idx  <- cbind(rep(ridx, times = K), as.vector(R))
+
+  # Ascending-sorted matrix: Ps[i, R[i, j]] = P[i, j]
+  Ps <- matrix(0, nrow = nsim, ncol = K)
+  Ps[idx] <- as.vector(P)
+
+  # Column-major linear index for the inverse mapping (gather). A linear index
+  # is used instead of a two-column matrix subscript so the gather stays
+  # correct even when an intermediate result has lost its dim attribute (for
+  # example, pmin(1, A) returns a plain vector because its first argument is a
+  # scalar).
+  lin_gather <- rep(ridx, times = K) + (as.vector(R) - 1L) * nsim
+
+  scatter_back <- function(As) {
+    matrix(as.vector(As)[lin_gather], nrow = nsim, ncol = K)
+  }
+
+  if (mth == "holm") {
+    mult <- (K + 1L - seq_len(K))
+    M    <- Ps * rep(mult, each = nsim)
+    A    <- M
+    for (r in 2:K) {
+      A[, r] <- pmax(A[, r - 1L], A[, r])
+    }
+    return(scatter_back(pmin(1, A)))
+  }
+
+  if (mth == "hochberg") {
+    mult <- (K + 1L - seq_len(K))
+    M    <- Ps * rep(mult, each = nsim)
+    A    <- M
+    for (r in (K - 1L):1L) {
+      A[, r] <- pmin(A[, r + 1L], A[, r])
+    }
+    return(scatter_back(pmin(1, A)))
+  }
+
+  if (mth == "hommel") {
+    i_seq <- seq_len(K)
+    Q0    <- Ps * rep(K / i_seq, each = nsim)
+    base  <- Q0[, 1L]
+    for (cc in 2:K) {
+      base <- pmin(base, Q0[, cc])
+    }
+    q  <- matrix(base, nrow = nsim, ncol = K)
+    pa <- q
+    for (mm in (K - 1L):2L) {
+      i1    <- seq_len(K - mm + 1L)
+      i2    <- (K - mm + 2L):K
+      denom <- 2:mm
+      Qi2   <- Ps[, i2, drop = FALSE] * rep(mm / denom, each = nsim)
+      q1    <- Qi2[, 1L]
+      if (ncol(Qi2) >= 2L) {
+        for (cc in 2:ncol(Qi2)) {
+          q1 <- pmin(q1, Qi2[, cc])
+        }
+      }
+      q[, i1] <- pmin(mm * Ps[, i1, drop = FALSE], q1)
+      q[, i2] <- q[, K - mm + 1L]
+      pa      <- pmax(pa, q)
+    }
+    return(scatter_back(pmax(pa, Ps)))
+  }
+
+  stop("unknown method in .rcpmcp_padjust_matrix")
 }
 
 
@@ -757,11 +923,7 @@ rcpmcp_single <- function(delta,
     )
 
     for (mth in all_methods) {
-      signif_mth <- matrix(FALSE, nrow = nsim, ncol = K)
-      for (i in seq_len(nsim)) {
-        p_adj           <- stats::p.adjust(p_mat[i, ], method = mth)
-        signif_mth[i, ] <- p_adj < alpha
-      }
+      signif_mth <- .rcpmcp_padjust_matrix(p_mat, mth, K) < alpha
 
       any_signif   <- rowSums(signif_mth) >= 1
       any_joint_m1 <- rowSums(consist_m1 & signif_mth) >= 1

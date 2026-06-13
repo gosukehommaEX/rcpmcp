@@ -272,7 +272,8 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
         Sigma_use = Sigma_k,
         gamma_M1  = g,
         gamma_M2  = gamma_M2,
-        power_out = power_k
+        power_out = power_k,
+        which     = "m1"
       )$RCP_M1 - rcp0_m1
     }
 
@@ -301,7 +302,8 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
           Sigma_use = Sigma_k,
           gamma_M1  = gamma_M1,
           gamma_M2  = upper_m2,
-          power_out = power_k
+          power_out = power_k,
+          which     = "m2"
         )$RCP_M2,
         error = function(e) NA_real_
       )
@@ -316,7 +318,8 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
         Sigma_use = Sigma_k,
         gamma_M1  = gamma_M1,
         gamma_M2  = g,
-        power_out = power_k
+        power_out = power_k,
+        which     = "m2"
       )$RCP_M2 - rcp0_m2
     }
 
@@ -340,7 +343,8 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
         Sigma_use = Sigma_k,
         gamma_M1  = gm1_adj,
         gamma_M2  = gamma_M2,
-        power_out = power_k
+        power_out = power_k,
+        which     = "m1"
       )$RCP_M1
     } else NA_real_
 
@@ -351,7 +355,8 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
         Sigma_use = Sigma_k,
         gamma_M1  = gamma_M1,
         gamma_M2  = gm2_adj,
-        power_out = power_k
+        power_out = power_k,
+        which     = "m2"
       )$RCP_M2
     } else NA_real_
 

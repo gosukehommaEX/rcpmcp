@@ -4,7 +4,15 @@
 \alias{.rcpmcp_formula_rcp_only}
 \title{Compute Formula-Based RCP (Method 1 and Method 2) Without Power}
 \usage{
-.rcpmcp_formula_rcp_only(pre, delta, Sigma_use, gamma_M1, gamma_M2, power_out)
+.rcpmcp_formula_rcp_only(
+  pre,
+  delta,
+  Sigma_use,
+  gamma_M1,
+  gamma_M2,
+  power_out,
+  which = "both"
+)
 }
 \arguments{
 \item{pre}{List returned by \code{\link{rcpmcp_single_precompute}}.}
@@ -18,9 +26,18 @@
 \item{gamma_M2}{Numeric scalar. Consistency threshold for Method 2.}
 
 \item{power_out}{Numeric scalar. Pre-computed Power (denominator for RCP).}
+
+\item{which}{Character scalar. One of \code{"both"} (default),
+\code{"m1"}, or \code{"m2"}. Selects which numerator(s) to evaluate.
+Choosing \code{"m1"} or \code{"m2"} skips the multivariate normal
+integration for the other method, which is used by
+\code{\link{rcpmcp_get_gamma}} to avoid evaluating discarded integrals
+during \code{uniroot} iterations.}
 }
 \value{
-A named list with \code{RCP_M1} and \code{RCP_M2}.
+A named list with \code{RCP_M1} and \code{RCP_M2}. The entry
+corresponding to a method that was not requested via \code{which} is
+returned as \code{NA_real_}.
 }
 \description{
 An internal function used by \code{\link{rcpmcp_get_gamma}} during
