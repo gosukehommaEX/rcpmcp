@@ -168,11 +168,45 @@ Both extensions are only supported under `approach = "simulation"`. The closed-f
 
 ## Reproducibility
 
-All figures and tables in the associated manuscript can be reproduced by executing:
+All figures and tables in the associated manuscript, including the Supporting
+Information, can be reproduced from the scripts shipped with the package. To
+keep heavy computation separate from figure rendering, each set of scripts is
+split into a computation stage that caches intermediate results as `.rds` files
+and a rendering stage that reads them.
+
+| Location | Contents |
+|---|---|
+| `inst/scripts/` | Main-text Figures 1-4 and Table 1 |
+| `inst/sup_info/` | Supporting Information Figures S1-S6 |
+
+Within each folder, `data_generate_*.R` runs all sample-size, adjusted-threshold,
+closed-form, and Monte Carlo computations and writes the results to `data/*.rds`,
+and `table_and_figure_*.R` reads those files and writes the figures (EPS and PDF)
+and the LaTeX table to `results/`.
+
+To reproduce the main-text Figures 1-4 and Table 1, set the working directory to
+`inst/scripts/` and run:
 
 ```r
-source(system.file("scripts/table_and_figure_manuscript.R", package = "rcpmcp"))
+library(rcpmcp)
+source("data_generate_main.R")          # computation -> data/*.rds
+source("table_and_figure_manuscript.R") # rendering   -> results/
 ```
+
+The Supporting Information Figures S1-S6 are reproduced analogously from
+`inst/sup_info/`:
+
+```r
+library(rcpmcp)
+source("data_generate_supplement.R")
+source("table_and_figure_supplement.R")
+```
+
+All paths are relative to the working directory, so the `data/` and `results/`
+subfolders are created alongside the scripts. The number of Monte Carlo
+iterations is set by `NSIM` near the top of each computation script (`1000000`
+for the published results; reduce it for a quick run). Rendering additionally
+requires the `scales`, `patchwork`, and `ggh4x` packages.
 
 ## License
 
