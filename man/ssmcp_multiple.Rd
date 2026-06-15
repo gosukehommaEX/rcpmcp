@@ -13,6 +13,7 @@ ssmcp_multiple(
   K_max = 5,
   alpha = 0.025,
   target_power = 0.8,
+  r = 1,
   N_min = 10,
   N_max = 1e+06,
   tol = 1e-06
@@ -42,6 +43,9 @@ multiplicity adjustment. Default is \code{0.025}.}
 
 \item{target_power}{Numeric scalar. Target disjunctive power. Must be in
 \eqn{(0, 1)}. Default is \code{0.8}.}
+
+\item{r}{Numeric scalar. Positive allocation ratio of the experimental
+group to the control group. Default is \code{1} (equal allocation).}
 
 \item{N_min}{Positive integer. Minimum sample size passed to
 \code{\link{ssmcp_single}}. Default is \code{10}.}

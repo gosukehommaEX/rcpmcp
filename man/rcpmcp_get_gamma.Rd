@@ -14,6 +14,7 @@ rcpmcp_get_gamma(
   gamma_M1 = 0.5,
   gamma_M2 = 0,
   alpha = 0.025,
+  r = 1,
   tol = 1e-06
 )
 
@@ -65,6 +66,9 @@ Default is \code{0}.}
 
 \item{alpha}{Numeric scalar. One-sided familywise significance level before
 multiplicity adjustment. Default is \code{0.025}.}
+
+\item{r}{Numeric scalar. Positive allocation ratio of the experimental
+group to the control group. Default is \code{1} (equal allocation).}
 
 \item{tol}{Numeric scalar. Tolerance passed to \code{stats::uniroot}.
 Default is \code{1e-6}.}

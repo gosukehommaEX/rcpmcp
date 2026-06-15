@@ -1,14 +1,14 @@
-data_generate_main.R log -- 2026-06-13 23:52:06
+data_generate_main.R log -- 2026-06-15 11:09:43
 Settings: K_MAX = 5, NSIM = 1000000, SEED = 42, alpha = 0.025
-ss_01 (sample size)              1.0 sec
-ss_02 (sample size)              0.8 sec
-gm_01 (adjusted gamma)          26.9 sec
-gm_02 (adjusted gamma)          23.1 sec
-Figure 1 (f1 = 0.1)             49.5 sec
-Figure 1 (f1 = 0.2)             55.3 sec
-Figure 2 (closed-form)          20.7 sec
-Figure 3 (rho sensitivity)     131.9 sec
-Figure 4 (four MCP, sim)        53.6 sec
+ss_01 (sample size)              0.4 sec
+ss_02 (sample size)              0.4 sec
+gm_01 (adjusted gamma)          25.5 sec
+gm_02 (adjusted gamma)          21.5 sec
+Figure 1 (f1 = 0.1)             46.7 sec
+Figure 1 (f1 = 0.2)             44.7 sec
+Figure 2 (closed-form)          14.5 sec
+Figure 3 (rho sensitivity)     100.5 sec
+Figure 4 (four MCP, sim)        36.8 sec
 Table 1 (sample size)            0.2 sec
-Table 1 (adjusted gamma)         4.1 sec
+Table 1 (adjusted gamma)         1.5 sec
 All intermediate data written to 'data/'.

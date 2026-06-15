@@ -101,12 +101,15 @@
 #' }
 #'
 #' @export
+#' @param r Numeric scalar. Positive allocation ratio of the experimental
+#'   group to the control group. Default is \code{1} (equal allocation).
 ssmcp_single <- function(delta,
                          Sigma        = NULL,
                          fs           = c(0.1, 0.45, 0.45),
                          K            = 1,
                          alpha        = 0.025,
                          target_power = 0.8,
+                         r            = 1,
                          N_min        = 10,
                          N_max        = 1000000,
                          tol          = 1e-6) {
@@ -146,6 +149,9 @@ ssmcp_single <- function(delta,
       target_power <= 0 || target_power >= 1) {
     stop("target_power must be a single numeric value in (0, 1)")
   }
+  if (!is.numeric(r) || length(r) != 1 || r <= 0) {
+    stop("r must be a single positive numeric value")
+  }
   if (!is.numeric(N_min) || length(N_min) != 1 ||
       N_min < 1 || N_min != as.integer(N_min)) {
     stop("N_min must be a single positive integer")
@@ -160,7 +166,8 @@ ssmcp_single <- function(delta,
 
   # ========== Common Setup ==========
   Sigma_use <- if (is.null(Sigma)) diag(K) else Sigma
-  sd_j      <- sqrt(diag(Sigma_use))
+  c_alloc   <- (r + 1)^2 / r
+  sd_j      <- sqrt(c_alloc * diag(Sigma_use))
   R_Z       <- cov2cor(Sigma_use)
   alpha_adj <- alpha / K
   z_crit    <- stats::qnorm(1 - alpha_adj)
@@ -241,6 +248,7 @@ ssmcp_single <- function(delta,
     alpha          = alpha,
     alpha_adj      = alpha_adj,
     target_power   = target_power,
+    r              = r,
     N              = N_sol,
     power_achieved = power_achieved
   )
@@ -276,6 +284,7 @@ print.ssmcp_single <- function(x, digits = 4, ...) {
               paste(x$fs, collapse = ", ")))
   cat(sprintf("   No. of endpoints  : K        = %d\n",   x$K))
   cat(sprintf("   Significance lvl  : alpha    = %.4f\n", x$alpha))
+  cat(sprintf("   Allocation ratio  : r        = %s\n", if (is.null(x$r)) 1 else x$r))
   cat(sprintf("   Adjusted level    : alpha/K  = %.4f\n", x$alpha_adj))
   cat(sprintf("   Target power      : 1-beta   = %.4f\n", x$target_power))
 

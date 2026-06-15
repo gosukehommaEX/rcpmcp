@@ -219,6 +219,8 @@
 #' }
 #'
 #' @export
+#' @param r Numeric scalar. Positive allocation ratio of the experimental
+#'   group to the control group. Default is \code{1} (equal allocation).
 rcpmcp_multiple <- function(delta,
                             Sigma          = NULL,
                             N,
@@ -227,6 +229,7 @@ rcpmcp_multiple <- function(delta,
                             gamma_M1       = 0.5,
                             gamma_M2       = 0,
                             alpha          = 0.025,
+                            r              = 1,
                             approach       = "formula",
                             nsim           = 1e4,
                             seed           = 1,
@@ -302,6 +305,9 @@ rcpmcp_multiple <- function(delta,
       alpha <= 0 || alpha >= 1) {
     stop("alpha must be a single numeric value in (0, 1)")
   }
+  if (!is.numeric(r) || length(r) != 1 || r <= 0) {
+    stop("r must be a single positive numeric value")
+  }
   if (!approach %in% c("formula", "simulation")) {
     stop('approach must be either "formula" or "simulation"')
   }
@@ -372,6 +378,7 @@ rcpmcp_multiple <- function(delta,
         gamma_M1 = gamma_M1_vec[k],
         gamma_M2 = gamma_M2_vec[k],
         alpha    = alpha,
+        r        = r,
         approach = "formula"
       )
 
@@ -420,6 +427,7 @@ rcpmcp_multiple <- function(delta,
         gamma_M1       = gamma_M1_vec[k],
         gamma_M2       = gamma_M2_vec[k],
         alpha          = alpha,
+        r              = r,
         approach       = "simulation",
         nsim           = nsim,
         seed           = seed,
@@ -455,6 +463,7 @@ rcpmcp_multiple <- function(delta,
     gamma_M1       = gamma_M1,
     gamma_M2       = gamma_M2,
     alpha          = alpha,
+    r              = r,
     variance_known = variance_known,
     result         = result
   )
@@ -554,6 +563,7 @@ print.rcpmcp_multiple <- function(x,
   }
 
   cat(sprintf("   Significance lvl  : alpha    = %.4f\n", x$alpha))
+  cat(sprintf("   Allocation ratio  : r        = %s\n", if (is.null(x$r)) 1 else x$r))
   variance_known <- if (is.null(x$variance_known)) TRUE else x$variance_known
   if (x$approach == "simulation") {
     if (variance_known) {

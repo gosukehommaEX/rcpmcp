@@ -1,10 +1,10 @@
-data_generate_supplement.R log -- 2026-06-14 09:46:45
+data_generate_supplement.R log -- 2026-06-15 11:15:47
 Settings: K_MAX = 5, NSIM = 1000000, SEED = 42, alpha = 0.025
-baseline setup (Sigma = I)            20.4 sec
-S1 unknown variance                   89.7 sec
-S2 region-of-interest heterogeneity    49.0 sec
-S3 mixed endpoints                    34.5 sec
-S4 correlation x null region         144.9 sec
-S5 unequal variances                 103.3 sec
-S6 non-standard correlation          191.0 sec
+baseline setup (Sigma = I)            35.2 sec
+S1 unknown variance                  115.8 sec
+S2 region-of-interest heterogeneity    57.8 sec
+S3 mixed endpoints                    37.6 sec
+S4 correlation x null region         140.2 sec
+S5 unequal variances                  93.5 sec
+S6 non-standard correlation          146.6 sec
 All Supporting Information data written to 'data/'.

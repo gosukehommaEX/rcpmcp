@@ -51,7 +51,7 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
 
   # Regional sample sizes: use floor() for all regions, then assign the
   # remainder to the last region so that sum(Ns) == N exactly.
-  Ns    <- floor(fs * N)
+  Ns    <- fs * N
   Ns[S] <- N - sum(Ns[-S])
 
   f1         <- fs[1]
@@ -676,6 +676,8 @@ rcpmcp_single_precompute <- function(delta, Sigma_use, N, fs, K, alpha) {
 #' }
 #'
 #' @export
+#' @param r Numeric scalar. Positive allocation ratio of the experimental
+#'   group to the control group. Default is \code{1} (equal allocation).
 rcpmcp_single <- function(delta,
                           Sigma          = NULL,
                           N,
@@ -684,6 +686,7 @@ rcpmcp_single <- function(delta,
                           gamma_M1       = 0.5,
                           gamma_M2       = 0,
                           alpha          = 0.025,
+                          r              = 1,
                           approach       = "formula",
                           nsim           = 1e4,
                           seed           = 1,
@@ -747,6 +750,9 @@ rcpmcp_single <- function(delta,
       alpha <= 0 || alpha >= 1) {
     stop("alpha must be a single numeric value in (0, 1)")
   }
+  if (!is.numeric(r) || length(r) != 1 || r <= 0) {
+    stop("r must be a single positive numeric value")
+  }
   if (!approach %in% c("formula", "simulation")) {
     stop('approach must be either "formula" or "simulation"')
   }
@@ -777,6 +783,8 @@ rcpmcp_single <- function(delta,
 
   # ========== Common Setup ==========
   Sigma_use <- if (is.null(Sigma)) diag(K) else Sigma
+  c_alloc   <- (r + 1)^2 / r
+  Sigma_var <- c_alloc * Sigma_use
 
   # ========== Formula Approach (Bonferroni closed-form) ==========
   if (approach == "formula") {
@@ -784,7 +792,7 @@ rcpmcp_single <- function(delta,
     # Pre-compute all gamma-independent quantities once
     pre <- rcpmcp_single_precompute(
       delta     = delta,
-      Sigma_use = Sigma_use,
+      Sigma_use = Sigma_var,
       N         = N,
       fs        = fs,
       K         = K,
@@ -798,7 +806,7 @@ rcpmcp_single <- function(delta,
     rcp_res <- .rcpmcp_formula_rcp_only(
       pre       = pre,
       delta     = delta,
-      Sigma_use = Sigma_use,
+      Sigma_use = Sigma_var,
       gamma_M1  = gamma_M1,
       gamma_M2  = gamma_M2,
       power_out = power_out
@@ -817,10 +825,10 @@ rcpmcp_single <- function(delta,
 
     # Derive Ns with floor() + remainder correction (sum(Ns) == N exactly)
     S     <- length(fs)
-    Ns    <- floor(fs * N)
+    Ns    <- fs * N
     Ns[S] <- N - sum(Ns[-S])
 
-    sd_j       <- sqrt(diag(Sigma_use))
+    sd_j       <- sqrt(diag(Sigma_var))
     se_overall <- sd_j / sqrt(N)
     alpha_adj  <- alpha / K
 
@@ -844,7 +852,7 @@ rcpmcp_single <- function(delta,
     # ------------------------------------------------------------------
     hat_delta_s_arr <- array(NA_real_, dim = c(nsim, K, S))
     for (s in seq_len(S)) {
-      Sigma_s <- Sigma_use / Ns[s]
+      Sigma_s <- Sigma_var / Ns[s]
       L_s     <- t(chol(Sigma_s))
       Z_raw   <- matrix(stats::rnorm(nsim * K), nrow = K, ncol = nsim)
       hat_s   <- L_s %*% Z_raw + delta_mat[, s]
@@ -886,7 +894,7 @@ rcpmcp_single <- function(delta,
       # rWishart returns a K-by-K-by-nsim array of Wishart(nu, Sigma_use/nu)
       # draws. The diagonal element [j, j, i] is the sample variance for
       # endpoint j in simulation i.
-      W_arr  <- stats::rWishart(nsim, df = nu, Sigma = Sigma_use / nu)
+      W_arr  <- stats::rWishart(nsim, df = nu, Sigma = Sigma_var / nu)
       hat_sd <- matrix(NA_real_, nrow = nsim, ncol = K)
       for (j in seq_len(K)) {
         hat_sd[, j] <- sqrt(W_arr[j, j, ])
@@ -953,6 +961,7 @@ rcpmcp_single <- function(delta,
     gamma_M2       = gamma_M2,
     alpha          = alpha,
     alpha_adj      = alpha_adj,
+    r              = r,
     variance_known = variance_known,
     formula_result = formula_result,
     sim_results    = sim_results
@@ -1033,6 +1042,7 @@ print.rcpmcp_single <- function(x,
   cat(sprintf("   Threshold (M1)    : gamma_M1 = %.4f\n", x$gamma_M1))
   cat(sprintf("   Threshold (M2)    : gamma_M2 = %.4f\n", x$gamma_M2))
   cat(sprintf("   Significance lvl  : alpha    = %.4f\n", x$alpha))
+  cat(sprintf("   Allocation ratio  : r        = %s\n", if (is.null(x$r)) 1 else x$r))
   cat(sprintf("   Adjusted level    : alpha/K  = %.4f\n", x$alpha_adj))
   variance_known <- if (is.null(x$variance_known)) TRUE else x$variance_known
   if (x$approach == "simulation") {

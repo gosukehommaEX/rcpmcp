@@ -94,12 +94,15 @@
 #' }
 #'
 #' @export
+#' @param r Numeric scalar. Positive allocation ratio of the experimental
+#'   group to the control group. Default is \code{1} (equal allocation).
 ssmcp_multiple <- function(delta,
                            Sigma        = NULL,
                            fs           = c(0.1, 0.45, 0.45),
                            K_max        = 5,
                            alpha        = 0.025,
                            target_power = 0.8,
+                           r            = 1,
                            N_min        = 10,
                            N_max        = 1000000,
                            tol          = 1e-6) {
@@ -140,6 +143,9 @@ ssmcp_multiple <- function(delta,
       target_power <= 0 || target_power >= 1) {
     stop("target_power must be a single numeric value in (0, 1)")
   }
+  if (!is.numeric(r) || length(r) != 1 || r <= 0) {
+    stop("r must be a single positive numeric value")
+  }
   if (!is.numeric(N_min) || length(N_min) != 1 ||
       N_min < 1 || N_min != as.integer(N_min)) {
     stop("N_min must be a single positive integer")
@@ -175,6 +181,7 @@ ssmcp_multiple <- function(delta,
       K            = k,
       alpha        = alpha,
       target_power = target_power,
+      r            = r,
       N_min        = N_min,
       N_max        = N_max,
       tol          = tol
@@ -196,6 +203,7 @@ ssmcp_multiple <- function(delta,
     K_max        = K_max,
     alpha        = alpha,
     target_power = target_power,
+    r            = r,
     result       = result
   )
   class(out) <- "ssmcp_multiple"
@@ -230,6 +238,7 @@ print.ssmcp_multiple <- function(x, digits = 4, ...) {
               paste(x$fs, collapse = ", ")))
   cat(sprintf("   Max. endpoints    : K_max    = %d\n",   x$K_max))
   cat(sprintf("   Significance lvl  : alpha    = %.4f\n", x$alpha))
+  cat(sprintf("   Allocation ratio  : r        = %s\n", if (is.null(x$r)) 1 else x$r))
   cat(sprintf("   Target power      : 1-beta   = %.4f\n", x$target_power))
 
   corr_use <- cov2cor(x$Sigma)

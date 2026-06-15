@@ -12,6 +12,7 @@ When multiple primary endpoints are employed, familywise error rate (FWER) contr
 - **Monte Carlo simulation** for Bonferroni, Holm, Hochberg, and Hommel procedures
 - **Adjusted consistency thresholds** (Method 1 and Method 2) that correct for null RCP inflation
 - **Sample size determination** under the Bonferroni procedure
+- **General allocation ratio** `r` (default `1` for equal allocation); the treatment effect estimate has variance `(r + 1)^2 sigma^2 / (r N)`, so RCPs and adjusted thresholds are invariant to `r` once the sample size achieves the target power
 
 Regional consistency is evaluated following the Japanese Ministry of Health, Labour and Welfare (MHLW, 2007) guidance:
 

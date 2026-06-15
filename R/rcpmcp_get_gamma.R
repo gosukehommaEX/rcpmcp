@@ -131,6 +131,8 @@
 #' }
 #'
 #' @export
+#' @param r Numeric scalar. Positive allocation ratio of the experimental
+#'   group to the control group. Default is \code{1} (equal allocation).
 rcpmcp_get_gamma <- function(Sigma    = NULL,
                              N,
                              fs       = c(0.1, 0.45, 0.45),
@@ -138,6 +140,7 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
                              gamma_M1 = 0.5,
                              gamma_M2 = 0,
                              alpha    = 0.025,
+                             r        = 1,
                              tol      = 1e-6) {
 
   # ========== Input Validation ==========
@@ -180,12 +183,17 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
       alpha <= 0 || alpha >= 1) {
     stop("alpha must be a single numeric value in (0, 1)")
   }
+  if (!is.numeric(r) || length(r) != 1 || r <= 0) {
+    stop("r must be a single positive numeric value")
+  }
   if (!is.numeric(tol) || length(tol) != 1 || tol <= 0) {
     stop("tol must be a single positive numeric value")
   }
 
   # ========== Setup ==========
   Sigma_use <- if (is.null(Sigma)) diag(K_max) else Sigma
+  c_alloc   <- (r + 1)^2 / r
+  Sigma_var <- c_alloc * Sigma_use
 
   # Expand scalar N to a vector of length K_max for uniform indexing
   N_vec <- if (length(N) == 1L) rep(N, K_max) else N
@@ -194,7 +202,7 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
   # Pre-compute fixed quantities for K = 1, delta = 0
   pre1 <- rcpmcp_single_precompute(
     delta     = rep(0, 1),
-    Sigma_use = Sigma_use[1L, 1L, drop = FALSE],
+    Sigma_use = Sigma_var[1L, 1L, drop = FALSE],
     N         = N_vec[1L],
     fs        = fs,
     K         = 1L,
@@ -207,7 +215,7 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
   ref     <- .rcpmcp_formula_rcp_only(
     pre       = pre1,
     delta     = rep(0, 1),
-    Sigma_use = Sigma_use[1L, 1L, drop = FALSE],
+    Sigma_use = Sigma_var[1L, 1L, drop = FALSE],
     gamma_M1  = gamma_M1,
     gamma_M2  = gamma_M2,
     power_out = power1
@@ -241,7 +249,7 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
   for (k in seq(2L, K_max)) {
 
     idx_k     <- seq_len(k)
-    Sigma_k   <- Sigma_use[idx_k, idx_k, drop = FALSE]
+    Sigma_k   <- Sigma_var[idx_k, idx_k, drop = FALSE]
     delta_k   <- rep(0, k)
 
     # ------------------------------------------------------------------
@@ -380,6 +388,7 @@ rcpmcp_get_gamma <- function(Sigma    = NULL,
     gamma_M1 = gamma_M1,
     gamma_M2 = gamma_M2,
     alpha    = alpha,
+    r        = r,
     RCP0_M1  = rcp0_m1,
     RCP0_M2  = rcp0_m2,
     result   = result
@@ -420,6 +429,7 @@ print.rcpmcp_gamma <- function(x, digits = 4, ...) {
   cat(sprintf("   Base threshold    : gamma_M2 = %.4f  (Method 2)\n",
               x$gamma_M2))
   cat(sprintf("   Significance lvl  : alpha    = %.4f\n", x$alpha))
+  cat(sprintf("   Allocation ratio  : r        = %s\n", if (is.null(x$r)) 1 else x$r))
 
   corr_use <- cov2cor(x$Sigma)
   is_indep <- all(abs(corr_use - diag(x$K_max)) < 1e-8)

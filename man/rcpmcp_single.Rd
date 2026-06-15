@@ -15,6 +15,7 @@ rcpmcp_single(
   gamma_M1 = 0.5,
   gamma_M2 = 0,
   alpha = 0.025,
+  r = 1,
   approach = "formula",
   nsim = 10000,
   seed = 1,
@@ -68,6 +69,9 @@ Must be non-negative. Default is \code{0}.}
 
 \item{alpha}{Numeric scalar. One-sided familywise significance level before
 multiplicity adjustment. Default is \code{0.025}.}
+
+\item{r}{Numeric scalar. Positive allocation ratio of the experimental
+group to the control group. Default is \code{1} (equal allocation).}
 
 \item{approach}{Character scalar. Calculation approach: \code{"formula"}
 for the closed-form Bonferroni solution, or \code{"simulation"} for
