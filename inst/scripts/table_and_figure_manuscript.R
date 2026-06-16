@@ -592,7 +592,7 @@ tab1_lines <- c(
   "\\centering",
   "\\footnotesize",
   paste0("\\caption{Application to a hypothetical multi-regional clinical ",
-         "trial with up to $K = 3$ co-primary endpoints. ",
+         "trial with up to $K = 3$ multiple primary endpoints. ",
          "True treatment effects: $\\boldsymbol{\\delta} = (0.30, 0.25, 0.20)$, ",
          "$\\sigma_{k} = 1$ ($k = 1, 2, 3$), endpoint correlation $\\rho = 0.3$, ",
          "$f_{1} = 0.15$ (region of interest), $S = 3$, ",
